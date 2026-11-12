@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>اغرس غرساً واترك أثراً | درع غابات سوريا الذكي</title>
+  
+  <!-- مكتبة Leaflet للخرائط التفاعلية -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    body { background: #1a241b; overflow: hidden; }
+
+    /* الترويسة */
+    .app-header {
+      position: relative; height: 82px; background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #388e3c 100%);
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.35); z-index: 1100;
+    }
+    .header-overlay { text-align: center; color: #fff; padding: 0 65px; }
+    .main-title { font-size: 1.25rem; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.35); margin-bottom: 3px; }
+    .sub-title { font-size: 0.72rem; color: #e8f5e9; background: rgba(0,0,0,0.25); display: inline-block; padding: 2px 10px; border-radius: 15px; }
+    
+    .logo { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 45px; height: 58px; animation: sway 4s ease-in-out infinite; }
+    .logo svg { width: 100%; height: 100%; }
+    @keyframes sway { 0%, 100% { transform: translateY(-50%) rotate(-3deg); } 50% { transform: translateY(-50%) rotate(3deg); } }
+
+    /* حاوية الخريطة */
+    .map-wrapper {
+      position: relative;
+      height: calc(100vh - 82px);
+      width: 100%;
+      overflow: hidden;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #1c2826;
+    }
+
+    /* شريط البحث الذكي */
+    .search-bar-container {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 92%;
+      max-width: 440px;
+      z-index: 950;
+    }
+    .search-input-wrap {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 25px;
+      padding: 6px 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      border: 2px solid #2e7d32;
+    }
+    .search-input-wrap span { font-size: 1rem; margin-left: 8px; }
+    #smartSearch {
+      border: none;
+      outline: none;
+      width: 100%;
+      font-size: 0.85rem;
+      color: #222;
+      background: transparent;
+    }
+    #clearSearchBtn {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1rem;
+      cursor: pointer;
+      display: none;
+      padding: 0 4px;
+    }
+    .search-results {
+      background: #fff;
+      margin-top: 6px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+      border: 1px solid #c8e6c9;
+    }
+    .search-item {
+      padding: 9px 14px;
+      border-bottom: 1px solid #f1f8e9;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+    .search-item:last-child { border-bottom: none; }
+    .search-item:hover { background: #e8f5e9; }
+    .search-badge {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 8px;
+      background: #e8f5e9;
+      color: #1b5e20;
+      font-weight: bold;
+    }
+
+    /* أزرار التحكم السريعة على الخريطة */
+    .map-controls-bar {
+      position: absolute;
+      top: 62px;
+      left: 12px;
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #2e7d32;
+      color: #1b5e20;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: 0.2s;
+    }
+    .ctrl-btn:hover { background: #e8f5e9; }
+
+    /* دليل الألوان */
+    .map-legend {
+      position: absolute; top: 62px; right: 10px; background: rgba(255, 255, 255, 0.93);
+      padding: 7px 9px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 850; font-size: 0.68rem; border: 1px solid #c8e6c9;
+    }
+    .map-legend h4 { color: #1b5e20; margin-bottom: 4px; font-size: 0.75rem; }
+    .map-legend div { display: flex; align-items: center; margin-bottom: 3px; color: #333; cursor: pointer; }
+    .map-legend div:hover { text-decoration: underline; }
+    .map-legend span { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-left: 5px; border: 1px solid rgba(0,0,0,0.25); }
+
+    /* تسميات المناطق فوق الخريطة */
+    .region-map-label {
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      font-weight: bold;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px #000;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+
+    /* اللوحة المتجاوبة */
+    #panel {
+      position: fixed;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+      padding: 14px 16px;
+      overflow-y: auto;
+      transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+      z-index: 1050;
+    }
+
+    @media (max-width: 768px) {
+      #panel {
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 48vh;
+        border-top: 3px solid #2e7d32;
+        border-radius: 20px 20px 0 0;
+      }
+      #panel.hidden {
+        transform: translateY(105%);
+      }
+      .drag-handle {
+        width: 40px;
+        height: 4px;
+        background: #c8e6c9;
+        border-radius: 4px;
+        margin: 0 auto 8px;
+      }
+    }
+
+    @media (min-width: 769px) {
+      #panel {
+        top: 82px;
+        left: 0;
+        width: 375px;
+        height: calc(100vh - 82px);
+        border-right: 3px solid #2e7d32;
+        border-radius: 0 0 15px 0;
+        box-shadow: 4px 0 15px rgba(0,0,0,0.28);
+      }
+      #panel.hidden {
+        transform: translateX(-110%);
+      }
+      .drag-handle { display: none; }
+    }
+
+    #closeBtn { position: absolute; top: 12px; left: 12px; background: #ffebee; color: #c62828; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    #closeBtn:hover { background: #e53935; color: white; }
+    
+    .badge { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 10px; font-size: 0.72rem; font-weight: bold; margin-bottom: 4px; }
+    #panel h2 { color: #1b5e20; margin-bottom: 10px; font-size: 1.05rem; margin-top: 4px; }
+    
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .stat-box { background: rgba(241, 248, 233, 0.95); padding: 7px 8px; border-radius: 6px; font-size: 0.72rem; border: 1px solid #dcedc8; }
+    .stat-box strong { display: block; color: #2e7d32; font-size: 0.82rem; margin-top: 2px; }
+    
+    .trees-section h3 { color: #33691e; margin: 12px 0 7px; font-size: 0.86rem; border-bottom: 2px solid #aed581; padding-bottom: 3px; }
+    #panel ul { list-style: none; }
+    #panel li {
+      background: rgba(249, 251, 231, 0.98);
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-bottom: 7px;
+      font-size: 0.8rem;
+      border-right: 4px solid #558b2f;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    #panel li.fruit { border-right-color: #ef6c00; background: rgba(255, 248, 238, 0.98); }
+    #panel li.highlight-tree { outline: 2px solid #1b5e20; background: #e8f5e9; }
+
+    .tree-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .tree-title { font-weight: 700; color: #1b5e20; font-size: 0.83rem; }
+    #panel li.fruit .tree-title { color: #bf360c; }
+    .tree-tag { font-size: 0.65rem; color: #444; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); white-space: nowrap; }
+    
+    .tree-season {
+      display: inline-block;
+      font-size: 0.7rem;
+      color: #0d47a1;
+      background: #e3f2fd;
+      padding: 2px 7px;
+      border-radius: 5px;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .tree-note {
+      font-size: 0.72rem;
+      color: #4e5d52;
+      line-height: 1.45;
+      margin-top: 2px;
+    }
+    .leaflet-control-zoom { display: none; }
+  </style>
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="logo">
+      <svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="35" r="22" fill="#a5d6a7"/>
+        <circle cx="30" cy="45" r="16" fill="#81c784"/>
+        <circle cx="70" cy="45" r="16" fill="#81c784"/>
+        <circle cx="50" cy="20" r="14" fill="#c8e6c9"/>
+        <rect x="46" y="55" width="8" height="35" fill="#6d4c41" rx="2"/>
+        <path d="M50 90 Q40 100 30 105" stroke="#6d4c41" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M50 90 Q60 100 70 105" stroke="#6d4c41" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M50 90 Q50 102 50 110" stroke="#6d4c41" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="header-overlay">
+      <h1 class="main-title">اغرس غرساً واترك أثراً</h1>
+      <p class="sub-title">درع غابات سوريا الذكي • خريطة الأقمار الصناعية</p>
+    </div>
+  </header> 
+
+  <main class="map-wrapper">
+    <div id="map"></div>
+
+    <!-- شريط البحث الذكي -->
+    <div class="search-bar-container">
+      <div class="search-input-wrap">
+        <span>🔍</span>
+        <input type="text" id="smartSearch" placeholder="ابحث عن مدينة (تدمر، إدلب) أو شجرة (فستق، أرز)..." autocomplete="off">
+        <button id="clearSearchBtn" title="مسح البحث">✕</button>
+      </div>
+      <div id="searchResults" class="search-results"></div>
+    </div>
+
+    <!-- أزرار التحكم بالخريطة -->
+    <div class="map-controls-bar">
+      <button class="ctrl-btn" id="toggleLayerBtn" title="تبديل نوع الخريطة">🛰️ قمر صناعي / تضاريس</button>
+      <button class="ctrl-btn" id="resetViewBtn" title="إعادة عرض كامل سوريا">🗺️ كامل سوريا</button>
+    </div>
+
+    <!-- دليل الألوان -->
+    <div class="map-legend">
+      <h4>النطاقات البيئية</h4>
+      <div onclick="showRegion(0)"><span style="background:#1b5e20"></span> رطب جداً</div>
+      <div onclick="showRegion(1)"><span style="background:#2e7d32"></span> جبلي رطب</div>
+      <div onclick="showRegion(2)"><span style="background:#43a047"></span> شبه رطب</div>
+      <div onclick="showRegion(3)"><span style="background:#fbc02d"></span> شبه جاف</div>
+      <div onclick="showRegion(4)"><span style="background:#fb8c00"></span> سهبي</div>
+      <div onclick="showRegion(5)"><span style="background:#e65100"></span> جاف</div>
+    </div>
+  </main>
+
+  <aside id="panel" class="hidden">
+    <div class="drag-handle"></div>
+    <button id="closeBtn">✕</button>
+    <div>
+      <span class="badge" id="regionZone">نطاق بيئي</span>
+      <h2 id="regionName">اسم المنطقة</h2>
+    </div>
+    <div id="regionInfo" class="stats-grid"></div>
+    <div class="trees-section">
+      <h3>🌲 الأشجار الحراجية الملائمة</h3>
+      <ul id="forestList"></ul>
+    </div>
+    <div class="trees-section">
+      <h3>🍎 الأشجار المثمرة الملائمة</h3>
+      <ul id="fruitList"></ul>
+    </div>
+  </aside>
+
+  <script>
+    const REGIONS = [
+      {
+        name: "الساحل (اللاذقية وطرطوس)", shortName: "الساحل", zone: "نطاق رطب", color: "#1b5e20",
+        rain: 850, temp: 19, soil: "طينية حمراء", elevation: 150,
+        labelPos: [35.25, 35.92],
+        coords: [
+          [35.93, 35.80], [35.95, 36.02], [35.55, 36.05], [35.15, 36.05],
+          [34.64, 36.08], [34.64, 35.96], [35.15, 35.87], [35.55, 35.76], [35.85, 35.75]
+        ],
+        cities: ["اللاذقية", "طرطوس", "جبلة", "بانياس", "صافيتا", "الدريكيش"],
+        forestTrees: [
+          { name: "الصنوبر البروتي (Pinus brutia)", tag: "مقاوم وسريع", season: "تشرين الثاني - شباط", note: "العمود الفقري للغابات الساحلية، يتحمل الجفاف الصيفي والترب الكلسية." },
+          { name: "السنديان الدائم (Quercus calliprinos)", tag: "معمر وأصيل", season: "كانون الأول - شباط", note: "شجرة حراجية أصيلة تقاوم الحرائق وتجدد نموها من الجذور بفعالية." },
+          { name: "الغار النبيل (Laurus nobilis)", tag: "عطري واقتصادي", season: "تشرين الثاني - آذار", note: "ينمو في الوديان الرطبة والمنحدرات الساحلية وله قيمة اقتصادية وطبية عالية." },
+          { name: "الخروب (Ceratonia siliqua)", tag: "متحمل للجفاف", season: "شباط - آذار", note: "يُزرع في المناطق الدافئة الخالية من الصقيع الشديد حتى ارتفاع 400 م." }
+        ],
+        fruitTrees: [
+          { name: "الحمضيات (برتقال وليمون)", tag: "مناخ معتدل", season: "شباط - نيسان", note: "تحتاج تربة عميقة جيدة الصرف ورياً منتظماً صيفاً وحماية من الصقيع." },
+          { name: "الزيتون الساحلي (الخضيري)", tag: "إنتاج عالي", season: "تشرين الثاني - آذار", note: "يجود في السفوح الساحلية ويتحمل الرطوبة الجوية المرتفعة." },
+          { name: "الأفوكادو والقشطة", tag: "مناطق دافئة", season: "آذار - نيسان", note: "تنجح في الشريط الساحلي الدافئ المحمي من الرياح الباردة مع توفر الري المنتظم." }
+        ]
+      },
+      {
+        name: "الجبال الساحلية", shortName: "الجبال الساحلية", zone: "نطاق جبلي رطب", color: "#2e7d32",
+        rain: 1100, temp: 14, soil: "كلسية جبلية", elevation: 950,
+        labelPos: [35.35, 36.22],
+        coords: [
+          [35.95, 36.02], [35.85, 36.32], [35.40, 36.38], [34.95, 36.36],
+          [34.64, 36.28], [34.64, 36.08], [35.15, 36.05], [35.55, 36.05]
+        ],
+        cities: ["صلنفة", "كسب", "عين حلاقيم", "مصياف", "مشتى الحلو", "القدموس", "القرداحة", "الحفة"],
+        forestTrees: [
+          { name: "الأرز السوري / اللبناني (Cedrus libani)", tag: "قمم ومحميات", season: "تشرين الثاني - آذار", note: "شجرة تراثية أصيلة في قمم جبال الساحل السوري (صلنفة) فوق ارتفاع 1000 م." },
+          { name: "الشوح السوري (Abies cilicica)", tag: "نادر ومهدد", season: "تشرين الثاني - آذار", note: "ينمو في السفوح الشمالية الباردة والرطبة ويتطلب حماية بيئية خاصة." },
+          { name: "السنديان الأشعر (Quercus cerris)", tag: "غابات كثيفة", season: "كانون الأول - شباط", note: "يشكل غابات نفضية كثيفة تغني التربة الجبلية بالدبال وتمنع الانجراف." },
+          { name: "القيقب السوري (Acer syriacum)", tag: "تنوع حيوي", season: "كانون الأول - شباط", note: "شجرة جبلية متأقلمة تتحمل البرودة والثلوج وتدعم التوازن البيئي." }
+        ],
+        fruitTrees: [
+          { name: "التفاح الجبلي", tag: "يحتاج برودة", season: "كانون الثاني - آذار", note: "يتطلب ساعات برودة شتوية طويلة فوق ارتفاع 700 م لإعطاء ثمار عالية الجودة." },
+          { name: "الكرز", tag: "مرتفعات", season: "كانون الثاني - شباط", note: "يجود في المرتفعات الجبلية ذات التربة العميقة جيدة التهوية والصرف." },
+          { name: "الجوز واللوز الجبلي (والكستناء بالترب غير الكلسية)", tag: "معمر", season: "كانون الأول - شباط", note: "الجوز واللوز يلائمان الترب الكلسية الجبلية، أما الكستناء فتُزرع حصراً في الترب البركانية أو الخالية من الكلس." }
+        ]
+      },
+      {
+        name: "السهول الشمالية والداخلية", shortName: "الشمال", zone: "نطاق شبه رطب", color: "#43a047",
+        rain: 450, temp: 17, soil: "طينية كلسية خصبة", elevation: 350,
+        labelPos: [36.15, 37.15],
+        coords: [
+          [35.85, 36.32], [36.30, 36.65], [36.68, 36.60], [36.82, 38.02],
+          [36.25, 38.10], [35.75, 37.85], [35.45, 37.10], [35.40, 36.38]
+        ],
+        cities: ["حلب", "إدلب", "عفرين", "أعزاز", "الباب", "معرة النعمان", "جسر الشغور", "أريحا", "منبج"],
+        forestTrees: [
+          { name: "الصنوبر الحلبي (Pinus halepensis)", tag: "سريع التأقلم", season: "تشرين الثاني - شباط", note: "يتحمل الجفاف والترب الكلسية الفقيرة ويُستخدم بكثافة في التحريج الحراجي." },
+          { name: "السرو العمودي والأفقي", tag: "مصدات رياح", season: "تشرين الثاني - آذار", note: "مثالي كمصدات رياح حول البساتين لحماية المحاصيل من الجفاف والغبار." },
+          { name: "البلوط الملول (Quercus infectoria)", tag: "أصيل ومتين", season: "كانون الأول - شباط", note: "شجرة حراجية معمرة تتحمل التفاوت الحراري بين الصيف الحار والشتاء البارد." }
+        ],
+        fruitTrees: [
+          { name: "الفستق الحلبي", tag: "محصول استراتيجي", season: "كانون الثاني - شباط", note: "يتحمل الجفاف والترب الكلسية ويحتاج صيفاً حاراً جافاً وشتاءً بارداً." },
+          { name: "الزيتون (الصوراني والزيتي)", tag: "مقاوم للجفاف", season: "كانون الأول - آذار", note: "يجود بعلاً في الترب الكلسية الحمراء ويعد ركيزة الزراعة في الشمال." },
+          { name: "التين والرمان", tag: "متأقلم", season: "كانون الثاني - آذار", note: "التين يجود بعلاً في السفوح الصخرية، بينما يعطي الرمان إنتاجاً وفيراً مع الري التكميلي." }
+        ]
+      },
+      {
+        name: "المنطقة الوسطى والجنوبية", shortName: "الوسط والجنوب", zone: "نطاق شبه جاف", color: "#fbc02d",
+        rain: 280, temp: 18, soil: "بركانية وكلسية", elevation: 650,
+        labelPos: [33.75, 36.70],
+        coords: [
+          [35.40, 36.38], [35.45, 37.10], [34.80, 37.35], [34.05, 37.15],
+          [33.30, 37.25], [32.35, 36.85], [32.40, 35.85], [33.15, 35.80],
+          [33.85, 36.05], [34.55, 36.45], [34.64, 36.28], [34.95, 36.36]
+        ],
+        cities: ["دمشق", "ريف دمشق", "حمص", "حماة", "درعا", "السويداء", "القنيطرة", "الزبداني", "الغوطة", "سلمية", "النبك"],
+        forestTrees: [
+          { name: "البطم الأطلسي (Pistacia atlantica)", tag: "مقاوم للجفاف", season: "كانون الأول - شباط", note: "شجرة معمرة شديدة التحمل للجفاف وتُستخدم كأصل لتطعيم الفستق الحلبي." },
+          { name: "اللوز البري (Amygdalus orientalis)", tag: "تثبيت التربة", season: "كانون الأول - شباط", note: "ينمو في السفوح الجافة والصخرية ويمنع انجراف التربة في المناطق شبه الجافة." },
+          { name: "السرو الفضي (Cupressus arizonica)", tag: "قليل الاحتياج", season: "تشرين الثاني - آذار", note: "يتحمل الجفاف والبرودة القارية ويلائم أحزمة التشجير حول المدن." }
+        ],
+        fruitTrees: [
+          { name: "المشمش والدراق", tag: "بساتين مروية", season: "كانون الثاني - شباط", note: "يجودان في الغوطة والواحات والمناطق ذات الري التكميلي وشتاء بارد." },
+          { name: "العنب (الكرمة)", tag: "بعلي ومروي", season: "كانون الثاني - آذار", note: "يتأقلم بامتياز مع الترب البركانية في السويداء والكلسية في ريف دمشق وحمص." },
+          { name: "اللوز والزيتون", tag: "قليل المياه", season: "كانون الأول - شباط", note: "خيار مثالي للزراعة البعلية في المناطق التي تتلقى 250-350 ملم من الأمطار." }
+        ]
+      },
+      {
+        name: "الجزيرة والفرات", shortName: "الجزيرة والفرات", zone: "شبه جاف إلى جاف", color: "#fb8c00",
+        rain: 220, temp: 20, soil: "لحقية وجبسية", elevation: 280,
+        labelPos: [36.20, 40.25],
+        coords: [
+          [36.82, 38.02], [36.70, 39.00], [37.10, 40.50], [37.30, 42.35],
+          [36.55, 41.65], [35.60, 41.25], [34.45, 40.95], [34.85, 39.95],
+          [35.40, 39.25], [35.75, 37.85], [36.25, 38.10]
+        ],
+        cities: ["الحسكة", "القامشلي", "الرقة", "دير الزور", "الميادين", "البوكمال", "رأس العين", "المالكية", "الطبقة"],
+        forestTrees: [
+          { name: "الحور الفراتي (Populus euphratica)", tag: "ضفاف الأنهار", season: "كانون الثاني - آذار", note: "الشجرة الأصيلة لغابات الزور على ضفاف نهر الفرات، تتحمل الفيضانات والملوحة." },
+          { name: "الطرفاء / الأثل (Tamarix)", tag: "مقاوم للملوحة", season: "تشرين الثاني - آذار", note: "تتحمل الملوحة العالية والجفاف الشديد وتثبت التربة على حواف الأنهار والسبخات." },
+          { name: "الصفصاف (Salix)", tag: "بيئة نهرية", season: "كانون الثاني - آذار", note: "ينمو قرب المجاري المائية والقنوات ويحمي الضفاف من التآكل." }
+        ],
+        fruitTrees: [
+          { name: "الرمان الفراتي", tag: "جودة عالية", season: "كانون الثاني - آذار", note: "يجود في الأراضي اللحقية الخصبة المروية من الفرات والخابور." },
+          { name: "التين والعنب", tag: "متأقلم", season: "كانون الثاني - آذار", note: "يتحملان الحرارة الصيفية المرتفعة ويعطيان إنتاجاً جيداً بالري المنتظم." },
+          { name: "النخيل (في البوكمال والميادين)", tag: "مقاوم للحرارة", season: "آذار - نيسان", note: "ينجح في الأجزاء الجنوبية الدافئة من حوض الفرات ذات الصيف الطويل الحار." }
+        ]
+      },
+      {
+        name: "البادية السورية (تدمر)", shortName: "البادية", zone: "نطاق جاف", color: "#e65100",
+        rain: 120, temp: 22, soil: "رملية صحراوية", elevation: 450,
+        labelPos: [34.45, 38.65],
+        coords: [
+          [35.75, 37.85], [35.40, 39.25], [34.85, 39.95], [34.45, 40.95],
+          [33.35, 38.80], [32.35, 36.85], [33.30, 37.25], [34.05, 37.15],
+          [34.80, 37.35], [35.45, 37.10]
+        ],
+        cities: ["تدمر", "السخنة", "القريتين", "التنف", "البادية"],
+        forestTrees: [
+          { name: "البطم الأطلسي (في المحميات)", tag: "معمر جداً", season: "كانون الأول - شباط", note: "يشكل بقايا غابات طبيعية في جبال البادية (كجبل البلعاس) ويحتاج حصاد مياه الأمطار." },
+          { name: "الغضا والرتم (Haloxylon & Retama)", tag: "تثبيت الكثبان", season: "تشرين الثاني - شباط", note: "شجيرات صحراوية أصيلة جذورها عميقة جداً لتثبيت الرمال ومكافحة التصحر." },
+          { name: "الأكاسيا (السنط) والكبار البري", tag: "تحمل شديد", season: "شباط - آذار", note: "تتحمل الجفاف القاسي والترب الفقيرة وتوفر غطاءً نباتياً ورعوياً مستداماً." }
+        ],
+        fruitTrees: [
+          { name: "النخيل التدمري", tag: "واحات مروية", season: "آذار - نيسان", note: "شجرة الواحات الأولى في تدمر والسخنة، تتحمل الملوحة والحرارة العالية." },
+          { name: "الزيتون التدمري", tag: "تحمل الملوحة", season: "كانون الأول - شباط", note: "صنف محلي متأقلم مع مناخ الواحات الصحراوية ويُزرع في تدمر مع الري." },
+          { name: "التين الشوكي (في أطراف البادية)", tag: "مكافحة التصحر", season: "آذار - نيسان", note: "يُزرع في المناطق الانتقالية ذات الشتاء المعتدل كسياج حيوي ومصد للتعرية." }
+        ]
+      }
+    ];
+
+    // تهيئة خريطة Leaflet
+    const syriaCenter = [34.85, 38.65];
+    const map = L.map('map', {
+      center: syriaCenter,
+      zoom: 7,
+      zoomControl: false,
+      attributionControl: true
+    });
+
+    const satelliteHybrid = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18,
+      attribution: 'Esri Satellite'
+    });
+
+    const labelsLayer = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18
+    });
+
+    const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17,
+      attribution: 'OpenTopoMap'
+    });
+
+    satelliteHybrid.addTo(map);
+    labelsLayer.addTo(map);
+    let isSatellite = true;
+
+    document.getElementById('toggleLayerBtn').onclick = () => {
+      if (isSatellite) {
+        map.removeLayer(satelliteHybrid);
+        map.removeLayer(labelsLayer);
+        terrainLayer.addTo(map);
+        isSatellite = false;
+      } else {
+        map.removeLayer(terrainLayer);
+        satelliteHybrid.addTo(map);
+        labelsLayer.addTo(map);
+        isSatellite = true;
+      }
+    };
+
+    const regionPolygons = [];
+    REGIONS.forEach((region, idx) => {
+      const polygon = L.polygon(region.coords, {
+        color: '#ffffff',
+        weight: 1.8,
+        opacity: 0.75,
+        fillColor: region.color,
+        fillOpacity: 0.22
+      }).addTo(map);
+
+      polygon.on('mouseover', () => {
+        if (!polygon._isSelected) {
+          polygon.setStyle({ fillOpacity: 0.42, weight: 2.5 });
+        }
+      });
+
+      polygon.on('mouseout', () => {
+        if (!polygon._isSelected) {
+          polygon.setStyle({ fillOpacity: polygon._isDimmed ? 0.1 : 0.22, weight: 1.8 });
+        }
+      });
+
+      polygon.on('click', () => {
+        showRegion(idx);
+      });
+
+      regionPolygons.push(polygon);
+
+      const labelIcon = L.divIcon({
+        className: '',
+        html: `<div class="region-map-label" style="border-color:${region.color};">${region.shortName}</div>`,
+        iconSize: [90, 24],
+        iconAnchor: [45, 12]
+      });
+      L.marker(region.labelPos, { icon: labelIcon, interactive: false }).addTo(map);
+    });
+
+    const panel = document.getElementById('panel');
+    const searchInput = document.getElementById('smartSearch');
+    const searchResults = document.getElementById('searchResults');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+    function resetMapHighlights() {
+      regionPolygons.forEach(poly => {
+        poly._isSelected = false;
+        poly._isDimmed = false;
+        poly.setStyle({
+          color: '#ffffff',
+          weight: 1.8,
+          opacity: 0.75,
+          fillOpacity: 0.22
+        });
+      });
+    }
+
+    document.getElementById('closeBtn').onclick = () => {
+      panel.classList.add('hidden');
+      resetMapHighlights();
+    };
+
+    document.getElementById('resetViewBtn').onclick = () => {
+      panel.classList.add('hidden');
+      resetMapHighlights();
+      map.flyTo(syriaCenter, 7, { duration: 1.1 });
+    };
+
+    function highlightMultipleRegions(indices) {
+      const groupBounds = L.latLngBounds();
+      regionPolygons.forEach((poly, idx) => {
+        if (indices.includes(idx)) {
+          poly._isSelected = true;
+          poly._isDimmed = false;
+          poly.setStyle({
+            color: '#ffffff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.48
+          });
+          poly.bringToFront();
+          groupBounds.extend(poly.getBounds());
+        } else {
+          poly._isSelected = false;
+          poly._isDimmed = true;
+          poly.setStyle({
+            color: '#cccccc',
+            weight: 1,
+            opacity: 0.4,
+            fillOpacity: 0.08
+          });
+        }
+      });
+
+      if (groupBounds.isValid()) {
+        const isMobile = window.innerWidth <= 768;
+        map.flyToBounds(groupBounds, {
+          paddingTopLeft: [20, 70],
+          paddingBottomRight: isMobile ? [20, window.innerHeight * 0.48] : [20, 30],
+          duration: 1.1
+        });
+      }
+    }
+
+    function showRegion(index, highlightTerm = '') {
+      const region = REGIONS[index];
+      if (!region) return;
+
+      regionPolygons.forEach((poly, idx) => {
+        if (idx === index) {
+          poly._isSelected = true;
+          poly._isDimmed = false;
+          poly.setStyle({
+            color: '#ffffff',
+            weight: 3.5,
+            opacity: 1,
+            fillColor: region.color,
+            fillOpacity: 0.48
+          });
+          poly.bringToFront();
+        } else {
+          poly._isSelected = false;
+          poly._isDimmed = true;
+          poly.setStyle({
+            color: '#dddddd',
+            weight: 1.2,
+            opacity: 0.45,
+            fillOpacity: 0.1
+          });
+        }
+      });
+
+      const targetPoly = regionPolygons[index];
+      const isMobile = window.innerWidth <= 768;
+      map.flyToBounds(targetPoly.getBounds(), {
+        paddingTopLeft: [25, 75],
+        paddingBottomRight: isMobile ? [25, window.innerHeight * 0.49] : [25, 40],
+        maxZoom: 9,
+        duration: 1.0
+      });
+
+      document.getElementById('regionZone').textContent = region.zone;
+      document.getElementById('regionZone').style.backgroundColor = region.color + '22';
+      document.getElementById('regionZone').style.color = region.color;
+      document.getElementById('regionName').textContent = region.name;
+
+      document.getElementById('regionInfo').innerHTML = `
+        <div class="stat-box">🌧️ الهطول<strong>${region.rain} ملم</strong></div>
+        <div class="stat-box">🌡️ الحرارة<strong>${region.temp} °م</strong></div>
+        <div class="stat-box">⛰️ الارتفاع<strong>${region.elevation} م</strong></div>
+        <div class="stat-box">🌱 التربة<strong>${region.soil}</strong></div>
+      `;
+
+      renderList('forestList', region.forestTrees, false, highlightTerm);
+      renderList('fruitList', region.fruitTrees, true, highlightTerm);
+      panel.classList.remove('hidden');
+    }
+
+    function renderList(id, trees, isFruit, highlightTerm = '') {
+      const el = document.getElementById(id);
+      el.innerHTML = '';
+      trees.forEach(tree => {
+        const li = document.createElement('li');
+        if (isFruit) li.classList.add('fruit');
+        if (highlightTerm && tree.name.includes(highlightTerm)) {
+          li.classList.add('highlight-tree');
+        }
+        li.innerHTML = `
+          <div class="tree-header">
+            <span class="tree-title">${tree.name}</span>
+            <span class="tree-tag">${tree.tag}</span>
+          </div>
+          <div class="tree-season">📅 موسم الغرس: ${tree.season}</div>
+          <div class="tree-note">${tree.note}</div>
+        `;
+        el.appendChild(li);
+      });
+    }
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      clearSearchBtn.style.display = query ? 'block' : 'none';
+      
+      if (!query) {
+        searchResults.style.display = 'none';
+        resetMapHighlights();
+        return;
+      }
+
+      const matches = [];
+
+      REGIONS.forEach((region, idx) => {
+        if (region.name.includes(query)) {
+          matches.push({
+            type: 'region',
+            label: region.name,
+            badge: 'نطاق بيئي',
+            action: () => showRegion(idx)
+          });
+        }
+        region.cities.forEach(city => {
+          if (city.includes(query)) {
+            matches.push({
+              type: 'city',
+              label: `${city} (${region.shortName})`,
+              badge: 'مدينة / منطقة',
+              action: () => showRegion(idx)
+            });
+          }
+        });
+      });
+
+      const treeMap = new Map();
+      REGIONS.forEach((region, idx) => {
+        const allTrees = [...region.forestTrees, ...region.fruitTrees];
+        allTrees.forEach(t => {
+          if (t.name.includes(query)) {
+            if (!treeMap.has(t.name)) treeMap.set(t.name, []);
+            if (!treeMap.get(t.name).includes(idx)) treeMap.get(t.name).push(idx);
+          }
+        });
+      });
+
+      treeMap.forEach((regionIndices, treeName) => {
+        matches.push({
+          type: 'tree',
+          label: `شجرة ${treeName}`,
+          badge: `${regionIndices.length} نطاقات`,
+          action: () => {
+            highlightMultipleRegions(regionIndices);
+            showRegion(regionIndices[0], treeName);
+          }
+        });
+      });
+
+      if (matches.length === 0) {
+        searchResults.innerHTML = '<div class="search-item" style="color:#777;">لا توجد نتائج مطابقة</div>';
+      } else {
+        searchResults.innerHTML = '';
+        matches.slice(0, 8).forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'search-item';
+          div.innerHTML = `<span>${item.label}</span><span class="search-badge">${item.badge}</span>`;
+          div.onclick = () => {
+            item.action();
+            searchResults.style.display = 'none';
+          };
+          searchResults.appendChild(div);
+        });
+      }
+      searchResults.style.display = 'block';
+    });
+
+    clearSearchBtn.onclick = () => {
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      searchResults.style.display = 'none';
+      resetMapHighlights();
+    };
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-bar-container')) {
+        searchResults.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
